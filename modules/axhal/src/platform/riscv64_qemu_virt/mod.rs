@@ -26,10 +26,10 @@ unsafe extern "C" fn rust_entry(cpu_id: usize, _dtb: usize) {
     // we might just skip initializations in
     // axruntime/src/lib.rs rust_main
     // and directly calls the app.
-    // rust_main(cpu_id, dtb);
-    main();
+    rust_main(cpu_id, _dtb);
+    //main();
     // this is what rust_main does for uni-program OS.
-    self::misc::terminate();
+    //self::misc::terminate();
 }
 
 #[cfg(feature = "smp")]

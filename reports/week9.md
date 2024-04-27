@@ -156,7 +156,7 @@ d88P     888 888      "Y8888P  "Y8888   "Y88888P"   "Y8888P"
 
 替换原有的 `rust_main`, 只保留其核心功能：
 
-`rust_main` 是一些初始化，之后才调用用户程序然后推出，其实可以在 AXHAL 里直接完成，略过该部分。观察 `rust_main` 最后的执行流：
+`rust_main` 是一些初始化，之后才调用用户程序然后推出，其实可以在 AXHAL 里直接完成，略过该部分。观察在 axruntime 中， `rust_main` 最后的执行流：
 
 ```rust
 
@@ -197,4 +197,117 @@ Boot HART MEDELEG         : 0x0000000000f0b509
 HELLO FROM SBI
 Hello, world!
 ```
+
+## 3.3. 加入 runtime，提供更完备的功能
+
+阅读 `modules/axruntime/src/lib.rs:rust_main` 可以观察系统的初始化过程：
+
+首先调用 axalloc 初始化 memory allocator，然后
+
+- 对于 RISC-V 平台，打开三种中断（软件、外设、时钟），设置 mtimecmp (`sbi_rt::set_timer(0)`)；
+- 对于 x86 平台，设置 APIC, 设置对应的中断向量和时钟信息。
+
+如果有多任务，初始化调度器；
+
+按需初始化网络、块和显示设备；
+
+按需初始化其他CPU核；
+
+初始化时钟中断的处理方式；
+
+...
+
+各个部件的初始化都是按需完成的。
+
+首先复原 3.2 的变更，然后按提示编译 FIFO-Scheduler，得到如下结果。
+
+```
+[  0.061340 0 axruntime:126] Logging is enabled.
+[  0.064383 0 axruntime:127] Primary CPU 0 started, dtb = 0x87000000.
+[  0.066431 0 axruntime:129] Found physcial memory regions:
+[  0.068564 0 axruntime:131]   [PA:0x80200000, PA:0x80209000) .text (READ | EXECUTE | RESERVED)
+[  0.072448 0 axruntime:131]   [PA:0x80209000, PA:0x8020d000) .rodata (READ | RESERVED)
+[  0.074021 0 axruntime:131]   [PA:0x8020d000, PA:0x80210000) .data .tdata .tbss .percpu (READ | WRITE | RESERVED)
+[  0.076704 0 axruntime:131]   [PA:0x80210000, PA:0x80250000) boot stack (READ | WRITE | RESERVED)
+[  0.079494 0 axruntime:131]   [PA:0x80250000, PA:0x80274000) .bss (READ | WRITE | RESERVED)
+[  0.082734 0 axruntime:131]   [PA:0x80274000, PA:0x88000000) free memory (READ | WRITE | FREE)
+[  0.086283 0 axruntime:131]   [PA:0xc000000, PA:0xc210000) mmio (READ | WRITE | DEVICE | RESERVED)
+[  0.089007 0 axruntime:131]   [PA:0x10000000, PA:0x10001000) mmio (READ | WRITE | DEVICE | RESERVED)
+[  0.090795 0 axruntime:131]   [PA:0x10001000, PA:0x10009000) mmio (READ | WRITE | DEVICE | RESERVED)
+[  0.092635 0 axruntime:131]   [PA:0x30000000, PA:0x40000000) mmio (READ | WRITE | DEVICE | RESERVED)
+[  0.094064 0 axruntime:131]   [PA:0x40000000, PA:0x80000000) mmio (READ | WRITE | DEVICE | RESERVED)
+[  0.095842 0 axruntime:207] Initialize global memory allocator...
+[  0.097237 0 axruntime:208]   use TLSF allocator.
+[  0.099589 0 axruntime:149] Initialize platform devices...
+[  0.101154 0 axtask::api:66] Initialize scheduling...
+[  0.103459 0 axtask::api:72]   use FIFO scheduler.
+[  0.104804 0 axruntime:185] Primary CPU 0 init OK.
+Hello, main task!
+Hello, task 0! id = ThreadId(4)
+Hello, task 1! id = ThreadId(5)
+Hello, task 2! id = ThreadId(6)
+Hello, task 3! id = ThreadId(7)
+Hello, task 4! id = ThreadId(8)
+Hello, task 5! id = ThreadId(9)
+Hello, task 6! id = ThreadId(10)
+Hello, task 7! id = ThreadId(11)
+Hello, task 8! id = ThreadId(12)
+Hello, task 9! id = ThreadId(13)
+Task yielding tests run OK!
+[  0.117239 0:2 axhal::platform::riscv64_qemu_virt::misc:3] Shutting down...
+```
+
+观察其输出信息：物理内存段有内核的数据、代码段和 BOOT  信息段，以及五个外设：(platforms/riscv64-qemu-virt.toml)
+
+- [PA:0xc000000, PA:0xc210000)        PLIC
+- [PA:0x10000000, PA:0x10001000)   UART
+- [PA:0x10001000, PA:0x10009000)   VirtIO
+- [PA:0x30000000, PA:0x40000000)   PCI 配置
+- [PA:0x40000000, PA:0x80000000)    PCI MMIO （PMIO, 32b MMIO, 64b MMIO)
+
+平台无关：具有普遍性的模块（功能），只要固定好条件，即可放在不同地方执行；
+
+平台有关：需要结合应用场景分析的地方。
+
+调整 Hello World 的实现，使之动用 memory allocator:
+
+```
+#[cfg(feature = "axstd")]
+use axstd::println;
+use axstd::string::String;
+#[cfg_attr(feature = "axstd", no_mangle)]
+fn main() {
+    let prompt = String::from("Greet from ArceOS");
+    println!("Hello, world: {}", prompt);
+}
+
+```
+
+
+
+得到
+
+```
+HELLO FROM SBI
+
+       d8888                            .d88888b.   .d8888b.
+      d88888                           d88P" "Y88b d88P  Y88b
+     d88P888                           888     888 Y88b.
+    d88P 888 888d888  .d8888b  .d88b.  888     888  "Y888b.
+   d88P  888 888P"   d88P"    d8P  Y8b 888     888     "Y88b.
+  d88P   888 888     888      88888888 888     888       "888
+ d8888888888 888     Y88b.    Y8b.     Y88b. .d88P Y88b  d88P
+d88P     888 888      "Y8888P  "Y8888   "Y88888P"   "Y8888P"
+
+arch = riscv64
+platform = riscv64-qemu-virt
+target = riscv64gc-unknown-none-elf
+smp = 1
+build_mode = release
+log_level = warn
+
+Hello, world: Greet from ArceOS
+```
+
+
 
