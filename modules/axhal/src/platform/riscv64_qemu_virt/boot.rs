@@ -38,6 +38,7 @@ unsafe fn console_putchar() {
     putchar(0x53); // S
     putchar(0x42); // B
     putchar(0x49); // I
+    putchar(0x0A); // 
 }
 
 unsafe fn init_mmu() {

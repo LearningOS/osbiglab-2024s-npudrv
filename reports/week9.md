@@ -152,3 +152,49 @@ HELLO FROM SBI
 d88P     888 888      "Y8888P  "Y8888   "Y88888P"   "Y8888P"
 ```
 
+## 3.2. 基于 AXHAL 输出 Hello World 内容
+
+替换原有的 `rust_main`, 只保留其核心功能：
+
+`rust_main` 是一些初始化，之后才调用用户程序然后推出，其实可以在 AXHAL 里直接完成，略过该部分。观察 `rust_main` 最后的执行流：
+
+```rust
+
+unsafe { main() };
+
+#[cfg(feature = "multitask")]
+axtask::exit(0);
+#[cfg(not(feature = "multitask"))]
+{
+    debug!("main task exited: exit_code={}", 0);
+    axhal::misc::terminate();
+}
+```
+
+那直接留下
+
+```
+main();
+axhal::misc::terminate();
+```
+
+即可。
+
+编译运行输出结果如下：
+
+```
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren,time
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 4
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000001666
+Boot HART MEDELEG         : 0x0000000000f0b509
+
+HELLO FROM SBI
+Hello, world!
+```
+

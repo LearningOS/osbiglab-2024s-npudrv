@@ -14,15 +14,22 @@ pub mod mp;
 extern "C" {
     fn trap_vector_base();
     fn rust_main(cpu_id: usize, dtb: usize);
+    fn main(); // somewhere, could be the application
     #[cfg(feature = "smp")]
     fn rust_main_secondary(cpu_id: usize);
 }
 
-unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
+unsafe extern "C" fn rust_entry(cpu_id: usize, _dtb: usize) {
     crate::mem::clear_bss();
     crate::cpu::init_primary(cpu_id);
     crate::arch::set_trap_vector_base(trap_vector_base as usize);
-    rust_main(cpu_id, dtb);
+    // we might just skip initializations in
+    // axruntime/src/lib.rs rust_main
+    // and directly calls the app.
+    // rust_main(cpu_id, dtb);
+    main();
+    // this is what rust_main does for uni-program OS.
+    self::misc::terminate();
 }
 
 #[cfg(feature = "smp")]
