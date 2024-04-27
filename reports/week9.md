@@ -1,3 +1,5 @@
+# 第九周汇报
+
 ## 1.5
 
 ```
@@ -82,6 +84,31 @@ log_level = warn
 
 Hello, world!
 ```
+
+
+
+## 2.
+
+Arce OS 的层次化结构：
+
+-硬件有关、系统无关的模块：大多是控制硬件的驱动，例如时钟
+
+-硬件无关、系统无关的模块：资源分配工具箱（算法），例如内存管理、进程（线程）调度器等、页表
+
+-系统有关的模块：例如动态内存分配、网络、驱动接口等。
+
+框架文件架构：
+
+```
+api -- 面向用户程序提供的接口
+apps -- 用户程序
+crates -- 系统无关模块
+modules -- 系统核心实现
+doc --
+platforms -- 平台设置
+```
+
+## 
 
 ## 3.1. 系统引导输出
 
@@ -311,3 +338,49 @@ Hello, world: Greet from ArceOS
 
 
 
+## 4. 协程
+
+yield 的输出：
+
+```
+Hello, main task!
+Hello, task 0! id = ThreadId(4)
+Hello, task 1! id = ThreadId(5)
+Hello, task 2! id = ThreadId(6)
+Hello, task 3! id = ThreadId(7)
+Hello, task 4! id = ThreadId(8)
+Hello, task 5! id = ThreadId(9)
+Hello, task 6! id = ThreadId(10)
+Hello, task 7! id = ThreadId(11)
+Hello, task 8! id = ThreadId(12)
+Hello, task 9! id = ThreadId(13)
+```
+
+
+
+## 思考
+
+ArceOS 通过 axhal 的 boot 作为入口：
+
+利用 Linker Script 指定 `.text.boot` 段作为入口。
+
+
+
+https://embeddedinn.com/articles/tutorial/RISCV-Uncovering-the-Mysteries-of-Linux-Boot-on-RISC-V-QEMU-Machines/
+
+![The RISC-V Linux Boot Process](https://www.embeddedinn.com/images/posts/rvLinuxQemuBoot/bootAnimation.gif)
+
+RISC-V 之下，设备的启动过程如下：
+
+- 固件驱动（zsbl）：QEMU 进入 0x1000, 设置好 mhartid 和 DTB 信息，
+- 转入 Bootloader. Bootloader 进行必要的初始化，例如部分委托中断处理功能、设置自身的中断处理入口等（second stage bootloader），
+- 调用 sret （事前指定系统入口） 进入内核。
+
+相比之下，x86 以下列方式驱动：
+
+- ROM Stage: 检测 RAM 类型，RAM 自检；
+- RAM Stage：硬件自检，固件存储映射
+- MBR(master boot record): 引导其他 Boot record 加载
+- Bootloader 进入 Protected mode, 加载内核
+
+https://wiki.osdev.org/System_Initialization_(x86)
